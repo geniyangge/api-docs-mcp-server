@@ -45,6 +45,39 @@ function gitRead(args) {
 	}
 }
 
+/**
+ * 加载环境变量文件。
+ * - 文件由 ENV_FILE 指定，默认项目根 .env；文件不存在时静默跳过
+ * - 不覆盖已存在的环境变量（shell 已设置的优先级高于 .env）
+ * - 优先 Node 原生 process.loadEnvFile（>= 21.7），老版本降级手动解析
+ */
+function loadEnvFile() {
+	const file = process.env.ENV_FILE || '.env';
+	const abs = path.resolve(root, file);
+	if (typeof process.loadEnvFile === 'function') {
+		try {
+			process.loadEnvFile(abs);
+			return;
+		} catch (err) {
+			if (err.code === 'ENOENT') return;
+			fail(`加载 ${file} 失败: ${err.message}`);
+		}
+	}
+	if (!fs.existsSync(abs)) return;
+	for (const line of fs.readFileSync(abs, 'utf-8').split(/\r?\n/)) {
+		const m = /^\s*([\w.-]+)\s*=\s*(.*?)\s*$/.exec(line);
+		if (!m || line.trim().startsWith('#')) continue;
+		let value = m[2];
+		if (
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"))
+		) {
+			value = value.slice(1, -1);
+		}
+		if (process.env[m[1]] === undefined) process.env[m[1]] = value;
+	}
+}
+
 /** 执行 git 写操作（注入身份，不写 git config） */
 function runGit(args) {
 	if (DRY_RUN) {
@@ -63,6 +96,10 @@ function runGit(args) {
 		fail(`git ${args.join(' ')} 失败: ${(err.stderr || err.message).toString().trim()}`);
 	}
 }
+
+// ---------- 0. 加载环境变量（ENV_FILE 指定文件，默认 .env） ----------
+
+loadEnvFile();
 
 // ---------- 1. 无版本变更时跳过 ----------
 
