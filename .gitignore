@@ -4,3 +4,8 @@ coverage/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+# 本地环境变量（真实配置不入库；模板见 .env.example）
+.env
+.env.*
+!.env.example

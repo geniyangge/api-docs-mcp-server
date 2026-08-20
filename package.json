@@ -60,7 +60,9 @@
     "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build && npm test"
+    "release": "node __sh/release.cjs",
+    "prepublishOnly": "npm run build && npm test",
+    "postpublish": "node __sh/git-push.cjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.16.0",
