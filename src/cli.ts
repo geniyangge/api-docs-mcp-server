@@ -1,6 +1,8 @@
-#!/usr/bin/env node
 /**
- * api-docs-mcp-server CLI 入口（stdio 模式）——薄壳，逻辑见 src/stdio-server.ts
+ * api-docs-mcp-server CLI 逻辑（stdio 模式）
+ *
+ * 本模块导出 run()，由 bin/api-docs-mcp-server.cjs 薄壳调用（参考 prettier 结构）。
+ * 也可在代码中编程调用：import { run } from 'api-docs-mcp-server/cli'
  *
  * 供 Agent 智能体（Claude Code / Cursor 等）通过 mcpServers 配置直接拉取运行：
  *
@@ -21,7 +23,7 @@
 import { startStdioServer } from './stdio-server';
 
 /** CLI 解析结果 */
-interface CliOptions {
+export interface CliOptions {
 	source?: string;
 	name?: string;
 	version?: string;
@@ -56,7 +58,7 @@ const HELP_TEXT = `api-docs-mcp-server - 将 OpenAPI/Swagger 接口文档暴露�
 `;
 
 /** 解析命令行参数（支持 --key=value 与 --key value 两种形式） */
-function parseArgs(argv: string[]): CliOptions | null {
+export function parseArgs(argv: string[]): CliOptions | null {
 	const options: CliOptions = {};
 	const next = (i: number, key: keyof CliOptions): number => {
 		const value = argv[i + 1];
@@ -94,36 +96,43 @@ function parseArgs(argv: string[]): CliOptions | null {
 	return options;
 }
 
-async function main(): Promise<void> {
-	const options = parseArgs(process.argv.slice(2));
+/** CLI 主逻辑：解析参数 → 启动 stdio MCP server → 注册信号优雅退出 */
+export function run(): void {
+	let options: CliOptions | null;
+	try {
+		options = parseArgs(process.argv.slice(2));
+	} catch (e: any) {
+		console.error(`api-docs-mcp-server 启动失败: ${e?.message ?? e}`);
+		process.exit(1);
+	}
 	if (options === null) {
 		process.exit(0); // --help 已输出
 	}
 
-	const handle = await startStdioServer({
+	startStdioServer({
 		defaultSource: options.source,
 		serverInfo: {
 			name: options.name,
 			version: options.version,
 		},
-	});
-
-	// 优雅退出
-	let shuttingDown = false;
-	const shutdown = async (): Promise<void> => {
-		if (shuttingDown) {
-			return;
-		}
-		shuttingDown = true;
-		await handle.close();
-		process.exit(0);
-	};
-	process.on('SIGINT', () => void shutdown());
-	process.on('SIGTERM', () => void shutdown());
-	process.on('SIGBREAK', () => void shutdown());
+	})
+		.then(handle => {
+			// 优雅退出
+			let shuttingDown = false;
+			const shutdown = async (): Promise<void> => {
+				if (shuttingDown) {
+					return;
+				}
+				shuttingDown = true;
+				await handle.close();
+				process.exit(0);
+			};
+			process.on('SIGINT', () => void shutdown());
+			process.on('SIGTERM', () => void shutdown());
+			process.on('SIGBREAK', () => void shutdown());
+		})
+		.catch((e: any) => {
+			console.error(`api-docs-mcp-server 启动失败: ${e?.message ?? e}`);
+			process.exit(1);
+		});
 }
-
-main().catch((e: any) => {
-	console.error(`api-docs-mcp-server 启动失败: ${e?.message ?? e}`);
-	process.exit(1);
-});

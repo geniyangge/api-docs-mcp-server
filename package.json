@@ -37,11 +37,12 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "api-docs-mcp-server": "dist/cli.js"
+    "api-docs-mcp-server": "bin/api-docs-mcp-server.cjs"
   },
   "sideEffects": false,
   "files": [
     "dist",
+    "bin",
     "README.md",
     "LICENSE"
   ],

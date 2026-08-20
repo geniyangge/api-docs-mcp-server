@@ -185,7 +185,7 @@ MCP 工具调用失败时以 `isError: true` 返回错误文本，HTTP 层错误
 
 ```bash
 npm install
-npm run build    # 编译到 dist/（CommonJS + d.ts，含 CLI 入口 dist/cli.js）
+npm run build    # 编译 src/ 到 dist/（CommonJS + d.ts）
 npm test         # 运行测试（vitest，56 个用例，含 stdio CLI 集成测试）
 npm run typecheck
 ```
@@ -196,7 +196,7 @@ npm run typecheck
 npm publish
 ```
 
-`prepublishOnly` 会自动执行构建与测试。发布内容仅包含 `dist/`、`README.md`、`LICENSE`（见 `package.json` 的 `files` 字段）。
+`prepublishOnly` 会自动执行构建与测试。发布内容仅包含 `dist/`（编译产物）、`bin/`（CLI 薄壳）、`README.md`、`LICENSE`（见 `package.json` 的 `files` 字段）。
 
 ## 与 NestJS 的适配
 

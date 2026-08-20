@@ -4,7 +4,8 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 
-const CLI_PATH = path.resolve(__dirname, '..', 'dist', 'cli.js');
+// bin 薄壳入口（与 npm 安装后的 .bin shim 行为一致）
+const CLI_PATH = path.resolve(__dirname, '..', 'bin', 'api-docs-mcp-server.cjs');
 
 /** 测试用 OpenAPI 文档 */
 const spec = {
