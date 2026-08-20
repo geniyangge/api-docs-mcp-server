@@ -25,25 +25,52 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '..');
-const pkgPath = path.join(root, 'package.json');
-const lockPath = path.join(root, 'package-lock.json');
+// ---------------------------------------------------------------- 常量
+
+const ROOT = path.resolve(__dirname, '..');
+const PKG_PATH = path.join(ROOT, 'package.json');
+/** commit / tag / 变更检测关心的版本文件 */
+const VERSION_FILES = ['package.json', 'package-lock.json'];
 
 const DRY_RUN = Boolean(process.env.RELEASE_DRY_RUN);
 
+// ---------------------------------------------------------------- 通用工具
+
+/** 打印错误并退出进程 */
 function fail(msg) {
 	console.error(`[git-push] ${msg}`);
 	process.exit(1);
 }
 
-/** 只读 git 查询（dry-run 下也会真实执行） */
+/** 从 execFileSync 的异常中提取可读的错误信息 */
+function describeError(err) {
+	return (err.stderr || err.message).toString().trim();
+}
+
+/** 只读 git 查询（dry-run 下也会真实执行，保证校验有效） */
 function gitRead(args) {
 	try {
-		return execFileSync('git', args, { cwd: root, encoding: 'utf-8' }).trim();
+		return execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8' }).trim();
 	} catch (err) {
-		fail(`git ${args.join(' ')} 失败: ${(err.stderr || err.message).toString().trim()}`);
+		fail(`git ${args.join(' ')} 失败: ${describeError(err)}`);
 	}
 }
+
+/** 执行 git 写操作（用 -c 注入提交身份，不写任何 git config） */
+function runGit(args) {
+	if (DRY_RUN) {
+		console.log(`[git-push][dry-run] 将执行: git ${args.join(' ')}`);
+		return;
+	}
+	const identity = ['-c', `user.name=${process.env.GIT_USER_NAME}`, '-c', `user.email=${process.env.GIT_USER_EMAIL}`];
+	try {
+		execFileSync('git', [...identity, ...args], { cwd: ROOT, stdio: 'inherit' });
+	} catch (err) {
+		fail(`git ${args.join(' ')} 失败: ${describeError(err)}`);
+	}
+}
+
+// ---------------------------------------------------------------- 环境变量
 
 /**
  * 加载环境变量文件。
@@ -53,7 +80,7 @@ function gitRead(args) {
  */
 function loadEnvFile() {
 	const file = process.env.ENV_FILE || '.env';
-	const abs = path.resolve(root, file);
+	const abs = path.resolve(ROOT, file);
 	if (typeof process.loadEnvFile === 'function') {
 		try {
 			process.loadEnvFile(abs);
@@ -78,77 +105,92 @@ function loadEnvFile() {
 	}
 }
 
-/** 执行 git 写操作（注入身份，不写 git config） */
-function runGit(args) {
-	if (DRY_RUN) {
-		console.log(`[git-push][dry-run] 将执行: git ${args.join(' ')}`);
+// ---------------------------------------------------------------- 业务逻辑
+
+/** 检测 package.json / package-lock.json 是否有版本变更 */
+function hasVersionChange() {
+	const changed = gitRead(['status', '--porcelain', '--', ...VERSION_FILES]);
+	return Boolean(changed);
+}
+
+/** 校验提交身份环境变量，缺失时直接退出 */
+function resolveIdentity() {
+	const { GIT_USER_NAME: userName, GIT_USER_EMAIL: userEmail } = process.env;
+	if (!userName || !userEmail) {
+		fail('缺少 GIT_USER_NAME / GIT_USER_EMAIL，请参考 .env.example 配置');
+	}
+}
+
+/** 读取 package.json 的版本号（x.y.z 格式） */
+function readVersion() {
+	const pkg = JSON.parse(fs.readFileSync(PKG_PATH, 'utf-8'));
+	if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
+		fail(`无法解析版本号: ${pkg.version}`);
+	}
+	return pkg.version;
+}
+
+/** 提交版本变更并打 annotated tag */
+function commitAndTag(version) {
+	runGit(['add', ...VERSION_FILES]);
+	runGit(['commit', '-m', `chore: 版本号升级至 ${version}`]);
+	runGit(['tag', '-a', `v${version}`, '-m', `release v${version}`]);
+}
+
+/**
+ * 确认目标远程存在：给了 GIT_REMOTE_URL 则新建/改写 remote，
+ * 否则要求仓库已存在同名 remote。返回解析出的远程名。
+ */
+function resolveRemote() {
+	const name = process.env.GIT_REMOTE_NAME || 'origin';
+	const url = process.env.GIT_REMOTE_URL;
+	const existing = gitRead(['remote'])
+		.split(/\r?\n/)
+		.filter(Boolean);
+
+	if (url) {
+		if (existing.includes(name)) {
+			runGit(['remote', 'set-url', name, url]);
+		} else {
+			runGit(['remote', 'add', name, url]);
+		}
+	} else if (!existing.includes(name)) {
+		fail(`远程 ${name} 不存在，请配置 GIT_REMOTE_URL 或先 git remote add ${name}`);
+	}
+	return name;
+}
+
+/** 推送源码提交与版本 tag */
+function push(remoteName, version) {
+	runGit(['push', remoteName, 'HEAD']);
+	runGit(['push', remoteName, `v${version}`]);
+}
+
+// ---------------------------------------------------------------- 主流程
+
+function main() {
+	// 1. 加载环境变量（ENV_FILE 指定文件，默认 .env）
+	loadEnvFile();
+
+	// 2. 无版本变更时跳过（直接 npm publish 未走 release 脚本的场景）
+	if (!hasVersionChange()) {
+		console.warn('[git-push] package.json 无版本变更（直接 npm publish 未走 release 脚本？），跳过 commit/tag/push');
 		return;
 	}
-	const identity = [
-		'-c',
-		`user.name=${process.env.GIT_USER_NAME}`,
-		'-c',
-		`user.email=${process.env.GIT_USER_EMAIL}`,
-	];
-	try {
-		execFileSync('git', [...identity, ...args], { cwd: root, stdio: 'inherit' });
-	} catch (err) {
-		fail(`git ${args.join(' ')} 失败: ${(err.stderr || err.message).toString().trim()}`);
-	}
+
+	// 3. 校验身份与版本号
+	resolveIdentity();
+	const version = readVersion();
+	console.log(`[git-push] 记录并推送 v${version}`);
+
+	// 4. 提交版本变更并打 tag
+	commitAndTag(version);
+
+	// 5. push 源码与 tag
+	const remoteName = resolveRemote();
+	push(remoteName, version);
+
+	console.log(`[git-push] 完成：v${version} 已提交并推送。`);
 }
 
-// ---------- 0. 加载环境变量（ENV_FILE 指定文件，默认 .env） ----------
-
-loadEnvFile();
-
-// ---------- 1. 无版本变更时跳过 ----------
-
-const changed = gitRead(['status', '--porcelain', '--', 'package.json', 'package-lock.json']);
-if (!changed) {
-	console.warn('[git-push] package.json 无版本变更（直接 npm publish 未走 release 脚本？），跳过 commit/tag/push');
-	process.exit(0);
-}
-
-// ---------- 2. 校验身份与版本号 ----------
-
-const userName = process.env.GIT_USER_NAME;
-const userEmail = process.env.GIT_USER_EMAIL;
-if (!userName || !userEmail) {
-	fail('缺少 GIT_USER_NAME / GIT_USER_EMAIL，请参考 .env.example 配置');
-}
-
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
-	fail(`无法解析版本号: ${pkg.version}`);
-}
-const version = pkg.version;
-console.log(`[git-push] 记录并推送 v${version}`);
-
-// ---------- 3. commit + tag ----------
-
-runGit(['add', 'package.json', 'package-lock.json']);
-runGit(['commit', '-m', `chore: 版本号升级至 ${version}`]);
-runGit(['tag', '-a', `v${version}`, '-m', `release v${version}`]);
-
-// ---------- 4. push（源码 + tag） ----------
-
-const remoteName = process.env.GIT_REMOTE_NAME || 'origin';
-const remoteUrl = process.env.GIT_REMOTE_URL;
-const existingRemotes = gitRead(['remote'])
-	.split(/\r?\n/)
-	.filter(Boolean);
-
-if (remoteUrl) {
-	if (existingRemotes.includes(remoteName)) {
-		runGit(['remote', 'set-url', remoteName, remoteUrl]);
-	} else {
-		runGit(['remote', 'add', remoteName, remoteUrl]);
-	}
-} else if (!existingRemotes.includes(remoteName)) {
-	fail(`远程 ${remoteName} 不存在，请配置 GIT_REMOTE_URL 或先 git remote add ${remoteName}`);
-}
-
-runGit(['push', remoteName, 'HEAD']);
-runGit(['push', remoteName, `v${version}`]);
-
-console.log(`[git-push] 完成：v${version} 已提交并推送。`);
+main();
