@@ -4,8 +4,8 @@
 
 框架无关（零 NestJS / 框架依赖），提供两种接入形态：
 
-- **stdio 模式（CLI）**：`npx -y api-docs-mcp-server@latest --source=...`，供 Agent 智能体（Claude Code / Cursor / 其他 MCP 客户端）通过 `mcpServers` 配置直接拉取运行
-- **HTTP 模式**：`createMcpHttpHandler` Express 中间件 / 原生 Node http，自托管服务
+- **stdio 模式（CLI）**：`npx -y api-docs-mcp-server@latest --source=...`，免安装直接拉起，供 Agent 智能体（Claude Code / Cursor / 其他 MCP 客户端）通过 `mcpServers` 配置使用
+- **HTTP 模式**：`createMcpHttpHandler` Express 中间件 / 原生 Node http，自托管服务，供远程 MCP 客户端连接
 
 ## 特性
 
@@ -18,13 +18,66 @@
 
 ## 安装
 
+要求 Node >= 18。
+
 ```bash
 npm install api-docs-mcp-server
 ```
 
-要求 Node >= 18。
+> 终端用户无需安装：通过 `npx -y api-docs-mcp-server@latest` 免安装直接运行（`@latest` 保持最新版）。
 
 ## 快速开始
+
+按使用场景二选一：
+
+| 场景 | 推荐形态 |
+| --- | --- |
+| 本地 Agent（Claude Code / Cursor）直接接入 | **stdio 模式** |
+| 自托管服务，供远程 MCP 客户端调用 | **HTTP 模式** |
+
+### 完整示例：使用一个 OpenAPI 文档链接
+
+以一个真实的 OpenAPI 文档链接为例，走一遍从接入到调用的完整流程。
+
+**1. 准备文档链接**
+
+以 Petstore 官方 OpenAPI 文档为例（其他任意 `.json` / `.yaml` / `.yml` 链接同理）：
+
+```
+https://petstore.swagger.io/v2/swagger.json
+```
+
+**2. 接入 Agent（Claude Code / Cursor）**
+
+将链接作为默认文档源配置到 `mcpServers`：
+
+```json
+{
+  "mcpServers": {
+    "petstore": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "api-docs-mcp-server@latest",
+        "--source=https://petstore.swagger.io/v2/swagger.json"
+      ]
+    }
+  }
+}
+```
+
+**3. 在对话中直接使用**
+
+配置完成后，Agent 即可基于该文档链接调用 MCP 工具：
+
+| 用户提问 | Agent 触发的工具 | 返回结果 |
+| --- | --- | --- |
+| 「这份文档里有哪些接口？」 | `get-spec-overview` | 接口总数、tags 分组统计 |
+| 「查找用户登录的接口」 | `search-apis`（关键词 `login`） | 匹配的 path / summary / operationId |
+| 「查看创建宠物接口的详细参数」 | `get-api-detail`（method=`POST`、path=`/pet`） | 参数说明与 $ref 展开后的数据模型 |
+
+> 临时切换文档：调用工具时传入 `source` 参数即可覆盖默认链接，如 `{"source": "https://another.example.com/openapi.json"}`。
 
 ### 方式一：stdio 模式（推荐，Agent 智能体接入）
 
@@ -72,7 +125,7 @@ npx -y api-docs-mcp-server@latest --source=https://xxx.com/v2/api-docs --name=my
 
 ### 方式二：HTTP 模式（自托管服务）
 
-### Express
+#### Express
 
 ```ts
 import express from 'express';
@@ -92,7 +145,7 @@ app.listen(3000);
 // MCP 端点: http://localhost:3000/mcp
 ```
 
-### 原生 Node http
+#### 原生 Node http
 
 ```ts
 import { createServer } from 'node:http';
@@ -105,7 +158,7 @@ createServer(async (req, res) => {
 }).listen(3000);
 ```
 
-HTTP 模式下文档源可通过三种方式指定（优先级从高到低）：
+HTTP 模式下文档源可通过以下方式指定（优先级从高到低）：
 
 1. **工具调用参数** `source`（如 `{"source": "https://.../openapi.json"}`）
 2. **请求 URL 查询参数** `?source=<文档地址>`
@@ -180,23 +233,6 @@ await server.connect(new StdioServerTransport());
 - `BODY_TOO_LARGE` / `BODY_PARSE_FAILED`
 
 MCP 工具调用失败时以 `isError: true` 返回错误文本，HTTP 层错误返回 JSON-RPC 错误格式。
-
-## 开发
-
-```bash
-npm install
-npm run build    # 编译 src/ 到 dist/（CommonJS + d.ts）
-npm test         # 运行测试（vitest，56 个用例，含 stdio CLI 集成测试）
-npm run typecheck
-```
-
-## 发布
-
-```bash
-npm publish
-```
-
-`prepublishOnly` 会自动执行构建与测试。发布内容仅包含 `dist/`（编译产物）、`bin/`（CLI 薄壳）、`README.md`、`LICENSE`（见 `package.json` 的 `files` 字段）。
 
 ## 与 NestJS 的适配
 
