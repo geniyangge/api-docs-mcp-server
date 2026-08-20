@@ -31,10 +31,13 @@ const ROOT = path.resolve(__dirname, '..');
 const PKG_PATH = path.join(ROOT, 'package.json');
 /** commit / tag / 变更检测关心的版本文件 */
 const VERSION_FILES = ['package.json', 'package-lock.json'];
-
-const DRY_RUN = Boolean(process.env.RELEASE_DRY_RUN);
 /** 环境变量文件：固定读取项目根目录下的 .env */
 const ENV_FILE = '.env';
+
+// 最先加载环境变量：下方求值的 DRY_RUN 等常量依赖 .env 的内容
+loadEnvFile();
+
+const DRY_RUN = Boolean(process.env.RELEASE_DRY_RUN);
 
 // ---------------------------------------------------------------- 通用工具
 
@@ -169,24 +172,21 @@ function push(remoteName, version) {
 // ---------------------------------------------------------------- 主流程
 
 function main() {
-	// 1. 加载环境变量（项目根目录 .env）
-	loadEnvFile();
-
-	// 2. 无版本变更时跳过（直接 npm publish 未走 release 脚本的场景）
+	// 1. 无版本变更时跳过（直接 npm publish 未走 release 脚本的场景）
 	if (!hasVersionChange()) {
 		console.warn('[git-push] package.json 无版本变更（直接 npm publish 未走 release 脚本？），跳过 commit/tag/push');
 		return;
 	}
 
-	// 3. 校验身份与版本号
+	// 2. 校验身份与版本号
 	resolveIdentity();
 	const version = readVersion();
 	console.log(`[git-push] 记录并推送 v${version}`);
 
-	// 4. 提交版本变更并打 tag
+	// 3. 提交版本变更并打 tag
 	commitAndTag(version);
 
-	// 5. push 源码与 tag
+	// 4. push 源码与 tag
 	const remoteName = resolveRemote();
 	push(remoteName, version);
 

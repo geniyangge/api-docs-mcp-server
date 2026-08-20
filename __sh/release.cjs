@@ -28,11 +28,14 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const PKG_PATH = path.join(ROOT, 'package.json');
 const LOCK_PATH = path.join(ROOT, 'package-lock.json');
+/** 环境变量文件：固定读取项目根目录下的 .env */
+const ENV_FILE = '.env';
+
+// 最先加载环境变量：下方求值的 DRY_RUN 等常量依赖 .env 的内容
+loadEnvFile();
 
 const DRY_RUN = Boolean(process.env.RELEASE_DRY_RUN);
 const VERSION_TYPES = ['patch', 'minor', 'major'];
-/** 环境变量文件：固定读取项目根目录下的 .env */
-const ENV_FILE = '.env';
 
 /** 带 2 空格缩进并追加换行写出 JSON（与 npm 写入格式保持一致） */
 const writeJson = (file, obj) => fs.writeFileSync(file, JSON.stringify(obj, null, 2) + '\n');
@@ -175,20 +178,17 @@ function updateVersionFiles(pkg, next) {
 // ---------------------------------------------------------------- 主流程
 
 function main() {
-	// 1. 加载环境变量（项目根目录 .env）
-	loadEnvFile();
-
-	// 2. 解析发版类型，校验分支与工作区
+	// 1. 解析发版类型，校验分支与工作区
 	const type = parseVersionType();
 	const branch = assertReleaseReady();
 
-	// 3. 计算新版本并写入 package.json / package-lock.json
+	// 2. 计算新版本并写入 package.json / package-lock.json
 	const pkg = readPackageJson();
 	const next = computeNextVersion(type, pkg.version);
 	console.log(`[release] ${type} ${pkg.version} -> ${next}（分支 ${branch}）`);
 	updateVersionFiles(pkg, next);
 
-	// 4. npm publish（prepublishOnly 自动执行 build + test）
+	// 3. npm publish（prepublishOnly 自动执行 build + test）
 	run('npm', ['publish']);
 
 	console.log(`[release] v${next} 已发布，postpublish 钩子将自动提交版本变更、打 tag 并推送。`);
