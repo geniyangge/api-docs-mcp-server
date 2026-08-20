@@ -7,6 +7,11 @@ import * as os from 'node:os';
 // bin 薄壳入口（与 npm 安装后的 .bin shim 行为一致）
 const CLI_PATH = path.resolve(__dirname, '..', 'bin', 'api-docs-mcp-server.cjs');
 
+// 默认版本跟随 package.json 的 version 字段
+const PKG_VERSION = JSON.parse(
+	fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8')
+).version;
+
 /** 测试用 OpenAPI 文档 */
 const spec = {
 	openapi: '3.0.0',
@@ -123,7 +128,7 @@ describe('CLI（stdio 模式）', () => {
 			});
 			expect(init.result.serverInfo.name).toBe('api-docs-mcp-server');
 			// 默认版本跟随 package.json 的 version 字段
-			expect(init.result.serverInfo.version).toBe('0.0.1');
+			expect(init.result.serverInfo.version).toBe(PKG_VERSION);
 			expect(init.result.capabilities.tools).toEqual({ listChanged: true });
 
 			client.notify('notifications/initialized', {});
