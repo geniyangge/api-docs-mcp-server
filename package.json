@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "MCP server exposing OpenAPI/Swagger API documentation as MCP tools (overview / search / detail / dump / refresh). Framework-agnostic, works with Express or plain Node http.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geniyangge/api-docs-mcp-server.git"
+  },
+  "homepage": "https://github.com/geniyangge/api-docs-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/geniyangge/api-docs-mcp-server/issues"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",
