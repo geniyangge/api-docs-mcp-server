@@ -31,6 +31,8 @@ const LOCK_PATH = path.join(ROOT, 'package-lock.json');
 
 const DRY_RUN = Boolean(process.env.RELEASE_DRY_RUN);
 const VERSION_TYPES = ['patch', 'minor', 'major'];
+/** 环境变量文件：固定读取项目根目录下的 .env */
+const ENV_FILE = '.env';
 
 /** 带 2 空格缩进并追加换行写出 JSON（与 npm 写入格式保持一致） */
 const writeJson = (file, obj) => fs.writeFileSync(file, JSON.stringify(obj, null, 2) + '\n');
@@ -73,21 +75,19 @@ function run(command, args) {
 // ---------------------------------------------------------------- 环境变量
 
 /**
- * 加载环境变量文件。
- * - 文件由 ENV_FILE 指定，默认项目根 .env；文件不存在时静默跳过
+ * 加载环境变量文件（固定读取项目根目录的 .env，文件不存在时静默跳过）。
  * - 不覆盖已存在的环境变量（shell 已设置的优先级高于 .env）
  * - 优先 Node 原生 process.loadEnvFile（>= 21.7），老版本降级手动解析
  */
 function loadEnvFile() {
-	const file = process.env.ENV_FILE || '.env';
-	const abs = path.resolve(ROOT, file);
+	const abs = path.resolve(ROOT, ENV_FILE);
 	if (typeof process.loadEnvFile === 'function') {
 		try {
 			process.loadEnvFile(abs);
 			return;
 		} catch (err) {
 			if (err.code === 'ENOENT') return;
-			fail(`加载 ${file} 失败: ${err.message}`);
+			fail(`加载 ${ENV_FILE} 失败: ${err.message}`);
 		}
 	}
 	if (!fs.existsSync(abs)) return;
@@ -175,7 +175,7 @@ function updateVersionFiles(pkg, next) {
 // ---------------------------------------------------------------- 主流程
 
 function main() {
-	// 1. 加载环境变量（ENV_FILE 指定文件，默认 .env）
+	// 1. 加载环境变量（项目根目录 .env）
 	loadEnvFile();
 
 	// 2. 解析发版类型，校验分支与工作区
