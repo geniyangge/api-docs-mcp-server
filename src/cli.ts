@@ -38,7 +38,7 @@ const HELP_TEXT = `api-docs-mcp-server - 将 OpenAPI/Swagger 接口文档暴露�
   --source=<url|path>   默认文档源（Swagger/OpenAPI 文档的 URL 或本地文件路径）
                         工具调用时传 source 参数可覆盖此默认值
   --name=<name>         MCP server 名称（默认 api-docs-mcp-server）
-  --version=<version>   MCP server 版本号（默认 1.0.0）
+  --version=<version>   MCP server 版本号（默认跟随包版本）
   -h, --help            显示此帮助
 
 示例:

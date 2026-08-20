@@ -122,7 +122,8 @@ describe('CLI（stdio 模式）', () => {
 				clientInfo: { name: 'vitest-cli', version: '1.0.0' },
 			});
 			expect(init.result.serverInfo.name).toBe('api-docs-mcp-server');
-			expect(init.result.serverInfo.version).toBe('1.0.0');
+			// 默认版本跟随 package.json 的 version 字段
+			expect(init.result.serverInfo.version).toBe('0.0.1');
 			expect(init.result.capabilities.tools).toEqual({ listChanged: true });
 
 			client.notify('notifications/initialized', {});

@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import pkg from '../package.json';
 import { OpenapiService, DETAIL_MAX_LENGTH } from './service/openapi.service';
 import { defaultLogger, LoggerLike } from './service/logger';
 import { truncateText } from './utils/truncate';
@@ -35,7 +36,8 @@ export function createMcpServer(service: OpenapiService, options: McpServerOptio
 	const server = new McpServer(
 		{
 			name: options.serverInfo?.name ?? 'api-docs-mcp-server',
-			version: options.serverInfo?.version ?? '1.0.0',
+			// 默认跟随 npm 包版本（package.json 的 version 字段）
+			version: options.serverInfo?.version ?? pkg.version,
 		},
 		{ capabilities: { tools: {} } }
 	);
