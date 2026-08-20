@@ -1,0 +1,67 @@
+{
+  "name": "api-docs-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing OpenAPI/Swagger API documentation as MCP tools (overview / search / detail / dump / refresh). Framework-agnostic, works with Express or plain Node http.",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "openapi",
+    "swagger",
+    "api-docs",
+    "llm",
+    "claude",
+    "cursor"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "require": "./dist/cli.js",
+      "default": "./dist/cli.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "api-docs-mcp-server": "dist/cli.js"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "api-docs-mcp-server contributors",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -w -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.16.0",
+    "axios": "^1.6.7",
+    "yaml": "^2.9.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.1",
+    "typescript": "5.3.3",
+    "vitest": "^2.1.9"
+  }
+}
